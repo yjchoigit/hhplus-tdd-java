@@ -24,8 +24,8 @@ public class PointValidationService {
     }
 
     // 현재 가지고 있는 포인트는 사용 포인트보다 같거나 커야 함
-    public void checkNowUserPoint(Long amount, Long nowPoint) {
-            if (nowPoint < amount) {
+    public void checkNowUserPoint(Long amount, Long nowUserPoint) {
+            if (nowUserPoint < amount) {
                 throw new RuntimeException(PointEnums.Error.NOT_ENOUGH.getMsg());
         }
     }
