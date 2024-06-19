@@ -11,15 +11,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
 
 // PointService 테스트케이스
 @ExtendWith(MockitoExtension.class)
@@ -134,6 +136,44 @@ public class PointServiceTest {
 
         // then
         assertEquals(testResult.size(), 10);
+    }
+
+    @Test
+    @DisplayName("동시성 제어를 통한 포인트 유효성 검사 성공 및 유저 포인트 충전 성공")
+    void chargeUserPoint_ValidConcurrentCheck_ValidAmount_Success() throws InterruptedException {
+        // given
+        Long id = 1L;
+        Long amount = 500L;
+
+        // 락이 획득되었는지 확인하기 위한 CountDownLatch
+        CountDownLatch lockAcquired = new CountDownLatch(10); // 쓰레드가 작업 완료할 때마다 카운트다운
+
+        // lock.lock()이 호출 시, CountDownLatch를 감소
+        Runnable chargeUserPointTask = () -> {
+            try {
+                pointService.chargeUserPoint(id, amount);
+            } finally {
+                lockAcquired.countDown(); // 작업 완료
+            }
+        };
+
+        // when
+        // 쓰레드 풀 크기를 10으로 설정 (멀티쓰레드)
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+        for (int i = 0; i < 10; i++) {
+            executorService.submit(chargeUserPointTask);
+        }
+
+        // 모든 쓰레드가 작업 완료할 때까지 대기
+        lockAcquired.await(5, TimeUnit.SECONDS); // 5초 동안 락이 획득될 때까지 대기
+
+        // then
+        verify(userPointRepository, times(10)).insertOrUpdate(id, amount);
+        verify(pointHistoryRepository, times(10)).insert(eq(id), eq(amount), eq(TransactionType.CHARGE), anyLong());
+
+        // ExecutorService 종료
+        executorService.shutdown();
     }
 
     @Test
