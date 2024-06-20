@@ -1,8 +1,12 @@
 package io.hhplus.tdd.point.service;
 
-import io.hhplus.tdd.point.PointHistory;
-import io.hhplus.tdd.point.TransactionType;
-import io.hhplus.tdd.point.UserPoint;
+import io.hhplus.tdd.domain.PointEnums;
+import io.hhplus.tdd.domain.PointHistory;
+import io.hhplus.tdd.domain.TransactionType;
+import io.hhplus.tdd.domain.UserPoint;
+import io.hhplus.tdd.point.dto.GetUserPointApiResDto;
+import io.hhplus.tdd.point.dto.GetUserPointHistoryListApiResDto;
+import io.hhplus.tdd.point.dto.UseUserPointApiResDto;
 import io.hhplus.tdd.point.repository.PointHistoryRepository;
 import io.hhplus.tdd.point.repository.UserPointRepository;
 import io.hhplus.tdd.point.service.validation.PointValidationService;
@@ -106,7 +110,7 @@ public class PointServiceTest {
 
         // when
         when(userPointRepository.selectById(id)).thenReturn(userPoint);
-        UserPoint testResult = pointService.getUserPoint(id);
+        GetUserPointApiResDto testResult = pointService.getUserPoint(id);
 
         // then
         assertEquals(userPoint.point(), testResult.point());
@@ -132,15 +136,15 @@ public class PointServiceTest {
 
         // when
         when(pointHistoryRepository.selectAllByUserId(id)).thenReturn(pointHistoryList);
-        List<PointHistory> testResult = pointService.getUserPointHistoryList(id);
+        List<GetUserPointHistoryListApiResDto> testResult = pointService.getUserPointHistoryList(id);
 
         // then
         assertEquals(testResult.size(), 10);
     }
 
     @Test
-    @DisplayName("동시성 제어를 통한 포인트 유효성 검사 성공 및 유저 포인트 충전 성공")
-    void chargeUserPoint_ValidConcurrentCheck_ValidAmount_Success() throws InterruptedException {
+    @DisplayName("포인트 유효성 검사 성공 및 유저 포인트 충전 성공")
+    void Should_TrueToChargeUserPoint_When_ValidConcurrentCheck_ValidAmount() throws InterruptedException {
         // given
         Long id = 1L;
         Long amount = 500L;
@@ -174,27 +178,6 @@ public class PointServiceTest {
 
         // ExecutorService 종료
         executorService.shutdown();
-    }
-
-    @Test
-    @DisplayName("포인트 유효성 검사 성공 시 유저 포인트 충전 성공")
-    void Should_TrueToChargeUserPoint_When_CheckAmountTrue() {
-        // given
-        Long id = 1L;
-        Long amount = 500L;
-
-        UserPoint userPoint = UserPoint.builder()
-                .id(id)
-                .point(amount)
-                .updateMillis(System.currentTimeMillis())
-                .build();
-
-        // when
-        when(userPointRepository.insertOrUpdate(id, amount)).thenReturn(userPoint);
-        UserPoint testResult = pointService.chargeUserPoint(id, amount);
-
-        // then
-        assertNotNull(testResult);
     }
 
     @Test
@@ -269,15 +252,52 @@ public class PointServiceTest {
         // when
         when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
         when(userPointRepository.insertOrUpdate(id, nowUserPoint.point() - amount)).thenReturn(userPoint);
-        UserPoint testResult = pointService.useUserPoint(id, amount);
+        UseUserPointApiResDto testResult = pointService.useUserPoint(id, amount);
 
         // then
         assertEquals(testResult.point(), 100L);
     }
 
     @Test
+    @DisplayName("잔여 포인트 유효성 검사 성공 시 유저 포인트 사용 성공")
+    void Should_TrueToChargeUserPoint_When_CheckAmountTrue() throws InterruptedException, ExecutionException {
+        // given
+        Long id = 1L;
+        Long initialPoint = 700L;
+        Long amount = 100L;
+
+        UserPoint nowUserPoint = UserPoint.builder()
+                .id(id)
+                .point(initialPoint)
+                .updateMillis(System.currentTimeMillis())
+                .build();
+
+        // when
+        when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
+
+        List<CompletableFuture<UseUserPointApiResDto>> futures = new ArrayList<>();
+
+        CompletableFuture<UseUserPointApiResDto> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                return pointService.useUserPoint(id, amount);
+            } catch (Exception e) {
+                throw new RuntimeException(PointEnums.Error.NOT_ENOUGH.getMsg());
+            }
+        });
+        futures.add(future);
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+        allOf.get(); // 모든 작업이 완료될 때까지 대기
+
+        // then
+        UseUserPointApiResDto result = future.get();
+        assertEquals(result.point(), initialPoint - amount);
+    }
+
+    @Test
     @DisplayName("잔여 포인트 유효성 검사 실패 시 유저 포인트 사용 실패")
-    void Should_FailToUseUserPoint_When_CheckNowUserPointTrue() {
+    void Should_FailToUseUserPoint_When_CheckNowUserPointFail() {
         // given
         Long id = 1L;
         Long amount = 700L;
