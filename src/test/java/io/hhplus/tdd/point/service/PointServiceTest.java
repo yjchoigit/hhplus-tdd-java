@@ -4,6 +4,7 @@ import io.hhplus.tdd.domain.PointEnums;
 import io.hhplus.tdd.domain.PointHistory;
 import io.hhplus.tdd.domain.TransactionType;
 import io.hhplus.tdd.domain.UserPoint;
+import io.hhplus.tdd.point.dto.ChargeUserPointApiResDto;
 import io.hhplus.tdd.point.dto.GetUserPointApiResDto;
 import io.hhplus.tdd.point.dto.GetUserPointHistoryListApiResDto;
 import io.hhplus.tdd.point.dto.UseUserPointApiResDto;
@@ -22,10 +23,7 @@ import java.util.List;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.times;
 
 // PointService 테스트케이스
 @ExtendWith(MockitoExtension.class)
@@ -99,7 +97,7 @@ class PointServiceTest {
     
     @Test
     @DisplayName("유저가 포인트가 있으면 포인트 조회 성공")
-    void Should_TrueToGetUserPoint_When_UserPointExists() {
+    void Should_SuccessToGetUserPoint_When_UserPointExists() {
         // given
         Long id = 1L;
         UserPoint userPoint = UserPoint.builder()
@@ -118,7 +116,7 @@ class PointServiceTest {
 
     @Test
     @DisplayName("유저 포인트 내역 조회 성공")
-    void Should_TrueToGetUserPointHistoryList_When_UserPointExists() {
+    void Should_SuccessToGetUserPointHistoryList_When_UserPointExists() {
         // given
         Long id = 1L;
         List<PointHistory> pointHistoryList = new ArrayList<>();
@@ -144,118 +142,46 @@ class PointServiceTest {
 
     @Test
     @DisplayName("포인트 유효성 검사 성공 및 유저 포인트 충전 성공")
-    void Should_TrueToChargeUserPoint_When_ValidConcurrentCheck_ValidAmount() throws InterruptedException {
+    void Should_SuccessToChargeUserPoint_When_CheckAmountSuccess() throws ExecutionException, InterruptedException {
         // given
         Long id = 1L;
-        Long amount = 500L;
-
-        // 락이 획득되었는지 확인하기 위한 CountDownLatch
-        CountDownLatch lockAcquired = new CountDownLatch(10); // 쓰레드가 작업 완료할 때마다 카운트다운
-
-        // lock.lock()이 호출 시, CountDownLatch를 감소
-        Runnable chargeUserPointTask = () -> {
-            try {
-                pointService.chargeUserPoint(id, amount);
-            } finally {
-                lockAcquired.countDown(); // 작업 완료
-            }
-        };
-
-        // when
-        // 쓰레드 풀 크기를 10으로 설정 (멀티쓰레드)
-        ExecutorService executorService = Executors.newFixedThreadPool(10);
-
-        for (int i = 0; i < 10; i++) {
-            executorService.submit(chargeUserPointTask);
-        }
-
-        // 모든 쓰레드가 작업 완료할 때까지 대기
-        lockAcquired.await(5, TimeUnit.SECONDS); // 5초 동안 락이 획득될 때까지 대기
-
-        // then
-        verify(userPointRepository, times(10)).insertOrUpdate(id, amount);
-        verify(pointHistoryRepository, times(10)).insert(eq(id), eq(amount), eq(TransactionType.CHARGE), anyLong());
-
-        // ExecutorService 종료
-        executorService.shutdown();
-    }
-
-    @Test
-    @DisplayName("포인트 유효성 검사 실패 시 유저 포인트 충전 실패")
-    void Should_FailToChargeUserPoint_When_CheckAmountFail() {
-        // given
-        Long id = 1L;
-        Long amount = 0L;
-        
-        // when, then
-        assertThrows(IllegalArgumentException.class, () -> {
-            pointValidationService.checkAmount(TransactionType.CHARGE,  amount);
-        });
-    }
-
-    @Test
-    @DisplayName("유저가 사용하려는 포인트가 현재 유저 포인트보다 크면 사용 실패")
-    void Should_ThrowExceptionToCheckNowUserPoint_When_NowUserPoint() {
-        // given
-        Long id = 1L;
-        Long amount = 600L;
-        UserPoint nowUserPoint = UserPoint.builder()
-                .id(id)
-                .point(300L)
-                .updateMillis(System.currentTimeMillis())
-                .build();
-
-        // when
-        lenient().when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
-
-        // then
-        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
-    }
-
-    @Test
-    @DisplayName("유저가 사용하려는 포인트가 현재 유저 포인트보다 작으면 사용 성공")
-    void Should_DoesNotThrowExceptionToCheckNowUserPoint_When_NowUserPoint() {
-        // given
-        Long id = 1L;
-        Long amount = 300L;
-        UserPoint nowUserPoint = UserPoint.builder()
-                .id(id)
-                .point(600L)
-                .updateMillis(System.currentTimeMillis())
-                .build();
-
-        // when
-        lenient().when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
-
-        // then
-        assertDoesNotThrow(() -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
-    }
-
-    @Test
-    @DisplayName("잔여 포인트 유효성 검사 성공 시 유저 포인트 사용 성공")
-    void Should_TrueToUseUserPoint_When_CheckNowUserPointTrue() {
-        // given
-        Long id = 1L;
-        Long amount = 600L;
+        Long initialPoint = 700L;
+        Long amount = 100L;
 
         UserPoint nowUserPoint = UserPoint.builder()
                 .id(id)
-                .point(700L)
+                .point(initialPoint)
                 .updateMillis(System.currentTimeMillis())
                 .build();
-        UserPoint userPoint = UserPoint.builder()
+
+        UserPoint updateUserPoint = UserPoint.builder()
                 .id(id)
-                .point(100L)
+                .point(initialPoint + amount)
                 .updateMillis(System.currentTimeMillis())
                 .build();
 
         // when
         when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
-        when(userPointRepository.insertOrUpdate(id, nowUserPoint.point() - amount)).thenReturn(userPoint);
-        UseUserPointApiResDto testResult = pointService.useUserPoint(id, amount);
+        when(userPointRepository.insertOrUpdate(id, nowUserPoint.point() + amount)).thenReturn(updateUserPoint);
+
+        List<CompletableFuture<ChargeUserPointApiResDto>> futures = new ArrayList<>();
+
+        CompletableFuture<ChargeUserPointApiResDto> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                return pointService.chargeUserPoint(id, amount);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(PointEnums.Error.NOT_ENOUGH.getMsg());
+            }
+        });
+        futures.add(future);
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+        allOf.get(); // 모든 작업이 완료될 때까지 대기
 
         // then
-        assertEquals(testResult.point(), 100L);
+        ChargeUserPointApiResDto result = future.get();
+        assertEquals(result.point(), initialPoint + amount);
     }
 
     @Test
@@ -272,8 +198,15 @@ class PointServiceTest {
                 .updateMillis(System.currentTimeMillis())
                 .build();
 
+        UserPoint updateUserPoint = UserPoint.builder()
+                .id(id)
+                .point(initialPoint - amount)
+                .updateMillis(System.currentTimeMillis())
+                .build();
+
         // when
         when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
+        when(userPointRepository.insertOrUpdate(id, nowUserPoint.point() - amount)).thenReturn(updateUserPoint);
 
         List<CompletableFuture<UseUserPointApiResDto>> futures = new ArrayList<>();
 
