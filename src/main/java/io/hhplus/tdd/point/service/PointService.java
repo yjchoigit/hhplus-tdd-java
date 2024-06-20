@@ -50,13 +50,14 @@ public class PointService {
             pointValidationService.checkAmount(TransactionType.CHARGE, amount);
 
             // 유저 포인트 충전
-            UserPoint userPoint = userPointRepository.insertOrUpdate(id, amount);
+            UserPoint userPoint = userPointRepository.selectById(id);
+            UserPoint updateUserPoint = userPointRepository.insertOrUpdate(id, userPoint.point() + amount);
 
             // 유저 포인트 충전 내역 등록
             pointHistoryRepository.insert(id, amount,
                     TransactionType.CHARGE, System.currentTimeMillis());
 
-            return ChargeUserPointApiResDto.from(userPoint);
+            return ChargeUserPointApiResDto.from(updateUserPoint);
         } finally {
             lock.unlock();
         }
@@ -83,7 +84,7 @@ public class PointService {
             pointHistoryRepository.insert(id, amount,
                     TransactionType.USE, System.currentTimeMillis());
 
-            return UseUserPointApiResDto.from(id, nowUserPoint.point() - amount, System.currentTimeMillis());
+            return UseUserPointApiResDto.from(id, userPoint.point(), System.currentTimeMillis());
         } finally {
             lock.unlock();
         }

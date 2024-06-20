@@ -29,7 +29,7 @@ import static org.mockito.Mockito.times;
 
 // PointService 테스트케이스
 @ExtendWith(MockitoExtension.class)
-public class PointServiceTest {
+class PointServiceTest {
     @Mock
     private PointHistoryRepository pointHistoryRepository;
     @Mock
@@ -54,7 +54,7 @@ public class PointServiceTest {
         Long id = null;
 
         // when, then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkId(id));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkId(id));
     }
 
     @Test
@@ -64,7 +64,7 @@ public class PointServiceTest {
         Long id = -1L;
 
         // when, then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkId(id));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkId(id));
     }
 
     @Test
@@ -74,7 +74,7 @@ public class PointServiceTest {
         Long amount = null;
 
         // when, then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkAmount(TransactionType.CHARGE, amount));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkAmount(TransactionType.CHARGE, amount));
     }
 
     @Test
@@ -84,7 +84,7 @@ public class PointServiceTest {
         Long amount = 0L;
 
         // when, then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkAmount(TransactionType.CHARGE, amount));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkAmount(TransactionType.CHARGE, amount));
     }
 
     @Test
@@ -188,7 +188,7 @@ public class PointServiceTest {
         Long amount = 0L;
         
         // when, then
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(IllegalArgumentException.class, () -> {
             pointValidationService.checkAmount(TransactionType.CHARGE,  amount);
         });
     }
@@ -209,7 +209,7 @@ public class PointServiceTest {
         lenient().when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
 
         // then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
     }
 
     @Test
@@ -281,7 +281,7 @@ public class PointServiceTest {
             try {
                 return pointService.useUserPoint(id, amount);
             } catch (Exception e) {
-                throw new RuntimeException(PointEnums.Error.NOT_ENOUGH.getMsg());
+                throw new IllegalArgumentException(PointEnums.Error.NOT_ENOUGH.getMsg());
             }
         });
         futures.add(future);
@@ -311,7 +311,7 @@ public class PointServiceTest {
         lenient().when(userPointRepository.selectById(id)).thenReturn(nowUserPoint);
 
         // then
-        assertThrows(RuntimeException.class, () -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
+        assertThrows(IllegalArgumentException.class, () -> pointValidationService.checkNowUserPoint(amount, nowUserPoint.point()));
     }
 
 }
