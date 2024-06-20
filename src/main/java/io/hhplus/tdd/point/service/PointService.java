@@ -1,8 +1,12 @@
 package io.hhplus.tdd.point.service;
 
-import io.hhplus.tdd.point.PointHistory;
-import io.hhplus.tdd.point.TransactionType;
-import io.hhplus.tdd.point.UserPoint;
+import io.hhplus.tdd.domain.PointHistory;
+import io.hhplus.tdd.domain.TransactionType;
+import io.hhplus.tdd.domain.UserPoint;
+import io.hhplus.tdd.point.dto.ChargeUserPointApiResDto;
+import io.hhplus.tdd.point.dto.GetUserPointApiResDto;
+import io.hhplus.tdd.point.dto.GetUserPointHistoryListApiResDto;
+import io.hhplus.tdd.point.dto.UseUserPointApiResDto;
 import io.hhplus.tdd.point.repository.PointHistoryRepository;
 import io.hhplus.tdd.point.repository.UserPointRepository;
 import io.hhplus.tdd.point.service.validation.PointValidationService;
@@ -10,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Service
@@ -24,21 +27,23 @@ public class PointService {
     private final ReentrantLock lock = new ReentrantLock();
 
     // 유저 포인트 조회
-    public UserPoint getUserPoint(Long id) {
+    public GetUserPointApiResDto getUserPoint(Long id) {
         // 유저 id valid 체크
         pointValidationService.checkId(id);
-        return userPointRepository.selectById(id);
+        return GetUserPointApiResDto.from(userPointRepository.selectById(id));
     }
 
     // 유저 포인트 내역 조회
-    public List<PointHistory> getUserPointHistoryList(Long id) {
+    public List<GetUserPointHistoryListApiResDto> getUserPointHistoryList(Long id) {
         // 유저 id valid 체크
         pointValidationService.checkId(id);
-        return pointHistoryRepository.selectAllByUserId(id);
+        List<PointHistory> list = pointHistoryRepository.selectAllByUserId(id);
+
+        return list.stream().map(GetUserPointHistoryListApiResDto::from).toList();
     }
 
     // 유저 포인트 충전
-    public UserPoint chargeUserPoint(Long id, Long amount) {
+    public ChargeUserPointApiResDto chargeUserPoint(Long id, Long amount) {
         try {
             lock.lock();
             // 충전하려는 포인트 valid 체크
@@ -51,14 +56,14 @@ public class PointService {
             pointHistoryRepository.insert(id, amount,
                     TransactionType.CHARGE, System.currentTimeMillis());
 
-            return userPoint;
+            return ChargeUserPointApiResDto.from(userPoint);
         } finally {
             lock.unlock();
         }
     }
 
     // 유저 포인트 사용
-    public UserPoint useUserPoint(Long id, Long amount) {
+    public UseUserPointApiResDto useUserPoint(Long id, Long amount) {
         try {
             lock.lock();
             // 사용하려는 포인트 valid 체크
@@ -78,9 +83,10 @@ public class PointService {
             pointHistoryRepository.insert(id, amount,
                     TransactionType.USE, System.currentTimeMillis());
 
-            return userPoint;
+            return UseUserPointApiResDto.from(id, nowUserPoint.point() - amount, System.currentTimeMillis());
         } finally {
             lock.unlock();
         }
     }
+
 }

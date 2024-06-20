@@ -1,4 +1,4 @@
-package io.hhplus.tdd.point.service;
+package io.hhplus.tdd.domain;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

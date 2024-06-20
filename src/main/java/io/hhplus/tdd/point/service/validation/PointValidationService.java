@@ -1,7 +1,7 @@
 package io.hhplus.tdd.point.service.validation;
 
-import io.hhplus.tdd.point.TransactionType;
-import io.hhplus.tdd.point.service.PointEnums;
+import io.hhplus.tdd.domain.TransactionType;
+import io.hhplus.tdd.domain.PointEnums;
 import org.springframework.stereotype.Service;
 
 @Service

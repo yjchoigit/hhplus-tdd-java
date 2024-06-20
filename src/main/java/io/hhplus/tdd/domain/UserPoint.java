@@ -1,4 +1,4 @@
-package io.hhplus.tdd.point;
+package io.hhplus.tdd.domain;
 
 import lombok.Builder;
 
@@ -11,4 +11,5 @@ public record UserPoint(
     public static UserPoint empty(long id) {
         return new UserPoint(id, 0, System.currentTimeMillis());
     }
+
 }
